@@ -64,7 +64,7 @@ self.addEventListener('notificationclick', function(e) {
       if (clients.length > 0) {
         return clients[0].focus();
       }
-      return self.clients.openWindow('/');
+      return self.clients.openWindow('/jujagam-attendance');
     })
   );
 });
