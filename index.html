@@ -248,6 +248,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue)}
       💾 알림 설정 저장
     </button>
     <div id="alarm-status" style="margin-top:8px;font-size:11px;color:var(--gray);text-align:center"></div>
+    <button onclick="testNotif()" class="btn btn-gray" style="width:100%;margin-top:8px;padding:10px;font-size:12px">
+      🔔 알림 테스트 (지금 바로 발송)
+    </button>
   </div>
 
     <div class="card" style="background:#f0f6ff;border:1.5px solid #bfdbfe">
@@ -1209,8 +1212,12 @@ var _summarySent = {};
 function requestNotifPermission(){
   Notification.requestPermission().then(function(p){
     checkNotifPermission();
-    if(p==='granted') showToast('알림 권한 허용됐습니다');
-    else showToast('알림 권한이 거부됐습니다','error');
+    if(p==='granted'){
+      showToast('알림 권한 허용됐습니다 ✓  이제 알림을 받을 수 있습니다');
+      scheduleAlarms(); // 상태 갱신
+    } else {
+      showToast('알림 권한이 거부됐습니다. 브라우저 설정에서 허용해 주세요','error');
+    }
   });
 }
 
@@ -1229,7 +1236,22 @@ function checkNotifPermission(){
 
 function sendNotif(title, body){
   if(!('Notification' in window)||Notification.permission!=='granted') return;
-  try{ new Notification(title,{body:body}); }catch(e){}
+  // 안드로이드 Chrome은 new Notification() 차단 → SW 경유 필수
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.ready.then(function(reg){
+      reg.showNotification(title, {
+        body: body,
+        icon: 'icon-192.svg',
+        badge: 'icon-192.svg',
+        requireInteraction: false
+      });
+    }).catch(function(){
+      // SW 없으면 fallback
+      try{ new Notification(title,{body:body}); }catch(e){}
+    });
+  } else {
+    try{ new Notification(title,{body:body}); }catch(e){}
+  }
 }
 
 function sendIndividualNotif(st, status, reason){
@@ -1313,7 +1335,8 @@ function scheduleAlarms(){
   var el=document.getElementById('alarm-status');
   if(el){
     var cnt=alarms.filter(function(a){ return a.enabled; }).length;
-    el.textContent=cnt>0?('알림 '+cnt+'개 등록됨 (앱 열려있는 동안 동작)'):'등록된 알림 없음';
+    var permTxt = Notification.permission==='granted' ? '✅ 권한 허용됨' : '❌ 권한 없음 — 위 버튼 클릭';
+    el.textContent = cnt>0 ? ('알림 '+cnt+'개 등록됨 | '+permTxt) : ('등록된 알림 없음 | '+permTxt);
   }
 }
 
@@ -1357,9 +1380,19 @@ function saveAlarms(){
   showToast('알림 설정 저장됐습니다');
 }
 
+function testNotif(){
+  if(Notification.permission!=='granted'){
+    showToast('먼저 권한 허용 버튼을 눌러주세요','error');
+    return;
+  }
+  sendNotif('🔔 출석부 알림 테스트', '알림이 정상적으로 작동하고 있습니다!');
+  showToast('테스트 알림 발송됨');
+}
+
 function initAlarmSettings(){
   checkNotifPermission();
   renderAlarmUI();
+  scheduleAlarms(); // 상태 텍스트 갱신
 }
 
 
