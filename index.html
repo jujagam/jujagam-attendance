@@ -1399,24 +1399,16 @@ function installPWA(){
 // ── 서비스워커 등록 ──────────────────────────────────
 function registerSW(){
   if(!('serviceWorker' in navigator)){
-    console.log('SW 미지원'); return;
+    showToast('SW 미지원 브라우저','error'); return;
   }
   navigator.serviceWorker.register('sw.js').then(function(reg){
-    console.log('SW 등록 성공! scope:', reg.scope);
-    if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
-    reg.addEventListener('updatefound', function(){
-      var newSW=reg.installing;
-      if(newSW) newSW.addEventListener('statechange', function(){
-        if(newSW.state==='installed') newSW.postMessage({type:'SKIP_WAITING'});
-      });
-    });
+    showToast('SW 등록 성공!');
     setTimeout(syncAlarmsToSW, 1000);
-    // SW 등록 후 권한이 default면 자동으로 요청
     if(Notification.permission==='default'){
       setTimeout(requestNotifPermission, 1500);
     }
   }).catch(function(e){
-    console.log('SW 등록 실패:', e.message);
+    showToast('SW 실패: '+e.message,'error');
   });
 }
 
@@ -1450,24 +1442,28 @@ function sendNotif(title, body){
 // ── 알림 테스트 ──────────────────────────────────────
 
 function checkSWStatus(){
-  var el = document.getElementById('sw-status-info');
+  var el=document.getElementById('sw-status-info');
   if(!el) return;
   el.style.display='block';
-  var lines = [];
-  lines.push('Notification: '+('Notification' in window ? 'O' : 'X'));
+  var lines=[];
+  lines.push('Notification: '+('Notification' in window?'O':'X'));
   lines.push('권한: '+Notification.permission);
-  lines.push('ServiceWorker: '+('serviceWorker' in navigator ? 'O' : 'X'));
+  lines.push('ServiceWorker: '+('serviceWorker' in navigator?'O':'X'));
   if('serviceWorker' in navigator){
     navigator.serviceWorker.getRegistrations().then(function(regs){
       lines.push('등록된SW: '+regs.length+'개');
       regs.forEach(function(r,i){
-        lines.push('SW'+i+': '+r.scope+' ('+
-          (r.active?'active':r.installing?'installing':r.waiting?'waiting':'none')+')');
+        lines.push('SW'+i+': '+(r.active?'active':r.installing?'installing':r.waiting?'waiting':'none'));
       });
-      el.innerHTML = lines.join('<br>');
+      el.innerHTML=lines.join('<br>');
+      // SW가 0개면 자동 재등록 시도
+      if(regs.length===0){
+        el.innerHTML+=('<br><b>SW 재등록 시도 중...</b>');
+        registerSW();
+      }
     });
   } else {
-    el.innerHTML = lines.join('<br>');
+    el.innerHTML=lines.join('<br>');
   }
 }
 
