@@ -248,6 +248,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue)}
       💾 알림 설정 저장
     </button>
     <div id="alarm-status" style="margin-top:8px;font-size:11px;color:var(--gray);text-align:center"></div>
+    <button onclick="checkSWStatus()" class="btn btn-gray" style="width:100%;margin-top:8px;padding:9px;font-size:11px;background:#f1f5f9">
+      🔍 서비스워커 상태 확인
+    </button>
+    <div id="sw-status-info" style="margin-top:6px;font-size:11px;color:var(--gray);padding:8px;background:#f8f9fd;border-radius:8px;display:none;line-height:1.8"></div>
     <button id="test-notif-btn" onclick="testNotif()" class="btn btn-gray" style="width:100%;margin-top:8px;padding:10px;font-size:12px">
       🔔 알림 테스트 (지금 바로 발송)
     </button>
@@ -1447,19 +1451,63 @@ function sendNotif(title, body){
 }
 
 // ── 알림 테스트 ──────────────────────────────────────
+
+function checkSWStatus(){
+  var el = document.getElementById('sw-status-info');
+  if(!el) return;
+  el.style.display='block';
+  var lines = [];
+  lines.push('Notification: '+('Notification' in window ? 'O' : 'X'));
+  lines.push('권한: '+Notification.permission);
+  lines.push('ServiceWorker: '+('serviceWorker' in navigator ? 'O' : 'X'));
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.getRegistrations().then(function(regs){
+      lines.push('등록된SW: '+regs.length+'개');
+      regs.forEach(function(r,i){
+        lines.push('SW'+i+': '+r.scope+' ('+
+          (r.active?'active':r.installing?'installing':r.waiting?'waiting':'none')+')');
+      });
+      el.innerHTML = lines.join('<br>');
+    });
+  } else {
+    el.innerHTML = lines.join('<br>');
+  }
+}
+
 function testNotif(){
-  if(!('Notification' in window)){ showToast('알림 미지원 브라우저','error'); return; }
-  if(Notification.permission!=='granted'){ showToast('권한 허용 버튼을 먼저 눌러주세요','error'); return; }
-  navigator.serviceWorker.ready.then(function(reg){
-    showToast('알림 발송 중...');
-    return reg.showNotification('🔔 출석부 알림 테스트', {
-      body:'알림이 정상 작동하고 있습니다! ('+new Date().toLocaleTimeString()+')',
-      icon:'icon-192.svg', badge:'icon-192.svg', tag:'test'
+  // 1단계: Notification API 지원 여부
+  if(!('Notification' in window)){
+    showToast('❌ 알림 미지원 브라우저','error'); return;
+  }
+  // 2단계: 권한 확인
+  var perm = Notification.permission;
+  if(perm!=='granted'){
+    showToast('❌ 권한상태: '+perm+' — 권한허용 필요','error'); return;
+  }
+  // 3단계: SW 지원 여부
+  if(!('serviceWorker' in navigator)){
+    showToast('❌ 서비스워커 미지원','error'); return;
+  }
+  showToast('권한OK · SW확인중...');
+  // 4단계: SW ready 대기
+  var swPromise = navigator.serviceWorker.ready;
+  var timeout = new Promise(function(_, reject){
+    setTimeout(function(){ reject(new Error('SW 10초 타임아웃')); }, 10000);
+  });
+  Promise.race([swPromise, timeout]).then(function(reg){
+    showToast('SW준비됨 · 알림발송중...');
+    return reg.showNotification('🔔 출석부 테스트', {
+      body:'테스트 성공! '+new Date().toLocaleTimeString(),
+      icon:'icon-192.svg',
+      tag:'test-'+Date.now(),
+      requireInteraction: false
     });
   }).then(function(){
-    showToast('✅ 발송 완료 — 알림바 확인');
+    showToast('✅ 발송완료! 화면 상단 알림바를 확인하세요');
   }).catch(function(e){
-    showToast('실패: '+e.message,'error');
+    showToast('❌ 오류: '+e.message,'error');
+    // SW 없으면 직접 시도
+    try{ new Notification('🔔 출석부 테스트',{body:'직접발송 시도'}); }catch(e2){}
   });
 }
 
