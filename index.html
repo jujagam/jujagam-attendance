@@ -236,10 +236,8 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue)}
       설정한 시간에 해당 학년 전체 출결 현황을 알립니다.<br>
       이후 개별 변경(결석·지각 등) 시 즉시 개별 알림이 발생합니다.
     </div>
-    <div id="alarm-permission-banner" style="display:none;background:#fff3cd;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;color:#856404">
-      ⚠️ 알림 권한이 없습니다.
-      <button onclick="requestNotifPermission()" style="margin-left:8px;padding:4px 10px;border:none;border-radius:6px;background:#f0a830;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">권한 허용</button>
-    </div>
+    <div id="alarm-permission-banner" style="background:#fff3cd;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;color:#856404">확인 중...</div>
+    <button onclick="requestNotifPermission()" id="notif-req-btn" style="width:100%;margin-bottom:10px;padding:10px;border:none;border-radius:10px;background:#f0a830;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">🔔 알림 권한 요청하기</button>
     <div id="alarm-list-ui"></div>
     <button onclick="addAlarmRow()" class="btn btn-gray" style="width:100%;margin-top:8px;padding:10px">
       ➕ 알림 시간 추가
@@ -1223,29 +1221,19 @@ function requestNotifPermission(){
 function checkNotifPermission(){
   var banner=document.getElementById('alarm-permission-banner');
   if(!banner) return;
-  if(!('Notification' in window)){
-    banner.style.display='block';
-    banner.innerHTML='⚠️ 이 브라우저는 알림을 지원하지 않습니다.';
-    return;
-  }
-  var perm = Notification.permission;
-  if(perm==='granted'){
-    banner.style.display='none';
-    // 권한 있음 → 테스트 버튼 활성화
-    var testBtn=document.getElementById('test-notif-btn');
-    if(testBtn) testBtn.style.opacity='1';
+  var perm = ('Notification' in window) ? Notification.permission : 'unsupported';
+  if(perm==='unsupported'){
+    banner.style.cssText='display:block;background:#fee2e2;color:#b91c1c;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px';
+    banner.innerHTML='❌ 이 브라우저는 알림을 지원하지 않습니다.';
+  } else if(perm==='granted'){
+    banner.style.cssText='display:block;background:#dcfce7;color:#15803d;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;font-weight:600';
+    banner.innerHTML='✅ 알림 권한 허용됨';
   } else if(perm==='denied'){
-    banner.style.display='block';
-    banner.innerHTML='🚫 알림이 차단됐습니다.<br>'
-      +'Chrome 주소창 왼쪽 🔒 → 알림 → 허용으로 변경해 주세요.';
+    banner.style.cssText='display:block;background:#fee2e2;color:#b91c1c;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;line-height:1.7';
+    banner.innerHTML='🚫 알림이 차단됐습니다.<br>Chrome 주소창 왼쪽 🔒 탭 → 알림 → 허용 선택 후 새로고침';
   } else {
-    // default: 허용 요청 필요
-    banner.style.display='block';
-    banner.innerHTML='⚠️ 알림 권한이 필요합니다.'
-      +'<button onclick="requestNotifPermission()" '
-      +'style="display:block;width:100%;margin-top:8px;padding:9px;border:none;'
-      +'border-radius:8px;background:#f0a830;color:#fff;font-size:12px;'
-      +'font-weight:700;cursor:pointer;font-family:inherit">🔔 알림 허용하기</button>';
+    banner.style.cssText='display:block;background:#fff3cd;color:#856404;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px';
+    banner.innerHTML='⚠️ 알림 권한이 필요합니다.<button onclick="requestNotifPermission()" style="display:block;width:100%;margin-top:8px;padding:11px;border:none;border-radius:8px;background:#f0a830;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">🔔 알림 허용하기</button>';
   }
 }
 
@@ -1410,17 +1398,26 @@ function installPWA(){
 
 // ── 서비스워커 등록 ──────────────────────────────────
 function registerSW(){
-  if(!('serviceWorker' in navigator)) return;
-  navigator.serviceWorker.register('sw.js', {scope: './'}).then(function(reg){
-    console.log('SW 등록:', reg.scope);
+  if(!('serviceWorker' in navigator)){
+    console.log('SW 미지원'); return;
+  }
+  navigator.serviceWorker.register('sw.js').then(function(reg){
+    console.log('SW 등록 성공! scope:', reg.scope);
     if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
     reg.addEventListener('updatefound', function(){
-      var sw=reg.installing;
-      if(sw) sw.addEventListener('statechange', function(){
-        if(sw.state==='installed') sw.postMessage({type:'SKIP_WAITING'});
+      var newSW=reg.installing;
+      if(newSW) newSW.addEventListener('statechange', function(){
+        if(newSW.state==='installed') newSW.postMessage({type:'SKIP_WAITING'});
       });
     });
-  }).catch(function(e){ console.log('SW 실패:', e); });
+    setTimeout(syncAlarmsToSW, 1000);
+    // SW 등록 후 권한이 default면 자동으로 요청
+    if(Notification.permission==='default'){
+      setTimeout(requestNotifPermission, 1500);
+    }
+  }).catch(function(e){
+    console.log('SW 등록 실패:', e.message);
+  });
 }
 
 // ── SW에 알람 데이터 전달 ────────────────────────────
