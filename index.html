@@ -230,7 +230,27 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue)}
     <div id="fb-status" style="margin-top:10px;text-align:center;font-size:11px;font-weight:600;padding:8px;border-radius:8px;background:#f0f2f8;color:var(--gray)">⚪ 연결 안 됨</div>
   </div>
 
-  <div class="card" style="background:#f0f6ff;border:1.5px solid #bfdbfe">
+  <div class="card">
+    <div style="font-size:12px;font-weight:700;color:var(--mid);margin-bottom:4px">🔔 출석 알림 설정</div>
+    <div style="font-size:11px;color:var(--gray);margin-bottom:12px;line-height:1.6">
+      설정한 시간에 해당 학년 전체 출결 현황을 알립니다.<br>
+      이후 개별 변경(결석·지각 등) 시 즉시 개별 알림이 발생합니다.
+    </div>
+    <div id="alarm-permission-banner" style="display:none;background:#fff3cd;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;color:#856404">
+      ⚠️ 알림 권한이 없습니다.
+      <button onclick="requestNotifPermission()" style="margin-left:8px;padding:4px 10px;border:none;border-radius:6px;background:#f0a830;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">권한 허용</button>
+    </div>
+    <div id="alarm-list-ui"></div>
+    <button onclick="addAlarmRow()" class="btn btn-gray" style="width:100%;margin-top:8px;padding:10px">
+      ➕ 알림 시간 추가
+    </button>
+    <button onclick="saveAlarms()" class="btn btn-primary" style="width:100%;margin-top:8px;padding:11px">
+      💾 알림 설정 저장
+    </button>
+    <div id="alarm-status" style="margin-top:8px;font-size:11px;color:var(--gray);text-align:center"></div>
+  </div>
+
+    <div class="card" style="background:#f0f6ff;border:1.5px solid #bfdbfe">
     <div style="font-size:12px;font-weight:700;color:#1d4ed8;margin-bottom:8px">📱 PWA 설치 안내</div>
     <div style="font-size:11px;color:#3a5a9a;line-height:1.8">
       <b>Firebase Hosting에 배포 후 설치하면<br>앱 꺼져도 알림을 받을 수 있습니다.</b><br><br>
