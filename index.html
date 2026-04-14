@@ -1088,14 +1088,25 @@ async function connectFb(config,showMsg=true){
     }
     _fbRef.on('value',snap=>{
       if(_fbSyncing) return; const data=snap.val(); if(!data) return;
+      // 변경된 출결 감지 → 즉시 개별 알림 (다른 기기에서 입력한 내용)
+      var today=todayStr();
+      var newRec=(data.records&&data.records[today])||{};
+      var oldRec=(records&&records[today])||{};
+      var needNotif=['결석','온라인','지각','조퇴'];
+      Object.keys(newRec).forEach(function(sid){
+        var newAtt=newRec[sid]; var oldAtt=oldRec[sid];
+        if(!needNotif.includes(newAtt.status)) return;
+        if(oldAtt&&oldAtt.status===newAtt.status) return; // 변경 없으면 스킵
+        var st=(students||[]).find(function(s){ return s.id===sid; });
+        if(st) sendIndividualNotif(st, newAtt.status, newAtt.reason||'');
+      });
       students=data.students||[]; records=data.records||{};
       if(data.settings) settings=Object.assign({acaName:'국자감 주자감'},data.settings);
       save(KEYS.S,students); save(KEYS.AT,records);
-      // localAtt 재로드는 renderAttList 내부의 ensureLocalAtt가 자동 처리
-      localAttDate='';  // 강제 재로드 트리거
+      localAttDate='';
       renderStudents(); renderAttList(); setFbStatus(true);
-      syncAlarmsToSW();  // SW에 최신 records 전달
-    });
+      syncAlarmsToSW();
+    });;
     setFbStatus(true); renderStudents(); loadAttendance();
   }catch(e){_fbEnabled=false;setFbStatus(false);if(showMsg) showToast('Firebase 연결 실패: '+e.message,'error');}
 }
