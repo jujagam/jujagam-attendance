@@ -338,6 +338,7 @@ let settings=load(KEYS.ST,{acaName:'국자감 주자감'});
 function persist(){
   save(KEYS.S,students); save(KEYS.AT,records); save(KEYS.ST,settings);
   if(_fbEnabled) pushFb();
+  syncAlarmsToSW();
 }
 
 function todayStr(){
@@ -1093,6 +1094,7 @@ async function connectFb(config,showMsg=true){
       // localAtt 재로드는 renderAttList 내부의 ensureLocalAtt가 자동 처리
       localAttDate='';  // 강제 재로드 트리거
       renderStudents(); renderAttList(); setFbStatus(true);
+      syncAlarmsToSW();  // SW에 최신 records 전달
     });
     setFbStatus(true); renderStudents(); loadAttendance();
   }catch(e){_fbEnabled=false;setFbStatus(false);if(showMsg) showToast('Firebase 연결 실패: '+e.message,'error');}
