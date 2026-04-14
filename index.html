@@ -141,6 +141,26 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue)}
   </div>
 </div>
 
+<!-- ══ 당일 현황 탭 ══════════════════════════════════ -->
+<div id="tab-daily" class="tab">
+  <div class="page-header"><h1>📋 당일 현황</h1><p id="daily-date-label"></p></div>
+  <div class="card">
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+      <input type="date" id="daily-date" style="flex:1" onchange="renderDaily()">
+    </div>
+    <div class="chip-group" id="daily-grade-filter">
+      <button class="chip active" onclick="setDailyGrade(this,'전체')">전체</button>
+      <button class="chip" onclick="setDailyGrade(this,'중등 1학년')">중1</button>
+      <button class="chip" onclick="setDailyGrade(this,'중등 2학년')">중2</button>
+      <button class="chip" onclick="setDailyGrade(this,'중등 3학년')">중3</button>
+      <button class="chip" onclick="setDailyGrade(this,'고등 1학년')">고1</button>
+      <button class="chip" onclick="setDailyGrade(this,'고등 2학년')">고2</button>
+      <button class="chip" onclick="setDailyGrade(this,'고등 3학년')">고3</button>
+    </div>
+  </div>
+  <div id="daily-content"></div>
+</div>
+
 <!-- ══ 월간 현황 탭 ══════════════════════════════════ -->
 <div id="tab-monthly" class="tab">
   <div class="page-header"><h1>📊 월간 현황</h1><p>학생별 월간 출결 기록</p></div>
@@ -305,6 +325,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue)}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
     출석입력
   </button>
+  <button class="tab-btn" onclick="showTab('daily',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+    당일현황
+  </button>
   <button class="tab-btn" onclick="showTab('monthly',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
     월간현황
@@ -375,6 +399,7 @@ function showTab(name,btn){
   document.getElementById('tab-'+name).classList.add('active');
   btn.classList.add('active');
   if(name==='today') loadAttendance();
+  if(name==='daily') renderDaily();
   if(name==='monthly') renderMonthly();
   if(name==='students') renderStudents();
   if(name==='settings') initSettings();
@@ -670,8 +695,81 @@ function saveModalAtt(){
   const savedMsg = savedStu ? makeAttMsg(savedStu,status,reason) : '';
   closeModal(); renderAttList();
   // 모달 닫은 후 메시지 카드 표시
-  if(savedMsg) showCopyToast(savedMsg);
   if(savedStu) sendIndividualNotif(savedStu, status, reason);
+}
+
+
+// ══════════════════════════════════════════════════════
+// 당일 현황
+// ══════════════════════════════════════════════════════
+var dailyGrade = '전체';
+
+function setDailyGrade(btn, grade){
+  dailyGrade = grade;
+  document.querySelectorAll('#daily-grade-filter .chip').forEach(function(c){ c.classList.remove('active'); });
+  btn.classList.add('active');
+  renderDaily();
+}
+
+function renderDaily(){
+  var date = document.getElementById('daily-date').value;
+  var label = document.getElementById('daily-date-label');
+  if(label) label.textContent = date || '날짜를 선택하세요';
+  var el = document.getElementById('daily-content');
+  if(!date){ el.innerHTML='<div class="empty"><div class="emoji">📅</div>날짜를 선택하세요</div>'; return; }
+
+  var dayRec = records[date] || {};
+  var targets = students.filter(function(s){
+    return dailyGrade==='전체' || s.grade===dailyGrade;
+  });
+
+  // 상태별 분류
+  var groups = {
+    '결석': { icon:'❌', color:'#fee2e2', text:'#b91c1c', border:'#fca5a5', items:[] },
+    '지각': { icon:'⏰', color:'#fef9c3', text:'#854d0e', border:'#fde047', items:[] },
+    '조퇴': { icon:'🏃', color:'#ffe4e6', text:'#be123c', border:'#fda4af', items:[] },
+    '온라인': { icon:'💻', color:'#e0f2fe', text:'#0369a1', border:'#7dd3fc', items:[] },
+  };
+
+  targets.forEach(function(st){
+    var rec = dayRec[st.id];
+    if(rec && groups[rec.status]){
+      groups[rec.status].items.push({st: st, reason: rec.reason||''});
+    }
+  });
+
+  var hasAny = Object.values(groups).some(function(g){ return g.items.length > 0; });
+  if(!hasAny){
+    el.innerHTML='<div class="card"><div class="empty" style="padding:20px"><div class="emoji">✅</div>결석·지각·조퇴·온라인 학생이 없습니다</div></div>';
+    return;
+  }
+
+  var html2 = '';
+  Object.keys(groups).forEach(function(status){
+    var g = groups[status];
+    if(g.items.length === 0) return;
+    html2 += '<div class="card" style="margin-bottom:10px">';
+    html2 += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">';
+    html2 += '<span style="font-size:16px">'+g.icon+'</span>';
+    html2 += '<span style="font-size:14px;font-weight:800;color:'+g.text+'">'+status+'</span>';
+    html2 += '<span style="margin-left:auto;background:'+g.color+';color:'+g.text+';border:1px solid '+g.border+';border-radius:20px;padding:2px 10px;font-size:12px;font-weight:700">'+g.items.length+'명</span>';
+    html2 += '</div>';
+    g.items.forEach(function(item){
+      var clsBadges = (item.st.class||'').split(',').map(function(c){ return c.trim(); }).filter(Boolean)
+        .map(function(c){ return '<span class="badge '+getClassCls(c)+'" style="margin-left:3px">'+esc(c)+'</span>'; }).join('');
+      html2 += '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f1f5f9">';
+      html2 += '<div style="flex:1">';
+      html2 += '<div style="font-size:14px;font-weight:700">'+esc(item.st.name)+'</div>';
+      html2 += '<div style="font-size:10px;color:var(--gray);margin-top:2px">'+esc(item.st.grade)+clsBadges+'</div>';
+      html2 += '</div>';
+      if(item.reason){
+        html2 += '<div style="background:'+g.color+';color:'+g.text+';border:1px solid '+g.border+';border-radius:8px;padding:4px 10px;font-size:12px;font-weight:600">'+esc(item.reason)+'</div>';
+      }
+      html2 += '</div>';
+    });
+    html2 += '</div>';
+  });
+  el.innerHTML = html2;
 }
 
 
@@ -1522,6 +1620,7 @@ function testNotif(){
 // 초기화
 // ══════════════════════════════════════════════════════
 document.getElementById('att-date').value=todayStr();
+document.getElementById('daily-date').value=todayStr();
 document.getElementById('month-sel').value=todayStr().slice(0,7);
 document.getElementById('stu-enroll').value=todayStr();
 document.getElementById('header-title').textContent='🏛 '+(settings.acaName||'국자감 주자감');
