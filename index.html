@@ -1186,6 +1186,8 @@ async function connectFb(config,showMsg=true){
     }
     _fbRef.on('value',snap=>{
       if(_fbSyncing) return; const data=snap.val(); if(!data) return;
+      // 내가 방금 push한 데이터가 돌아오는 것이면 무시 (1.5초 이내)
+      if(data._ts && data._ts<=_lastPushTime && Date.now()-_lastPushTime<1500) return;
       // 변경된 출결 감지 → 즉시 개별 알림 (다른 기기에서 입력한 내용)
       var today=todayStr();
       var newRec=(data.records&&data.records[today])||{};
